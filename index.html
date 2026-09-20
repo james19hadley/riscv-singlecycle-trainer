@@ -561,7 +561,6 @@
     .wire-group:hover .wire-line {
       stroke: #94a3b8;
       stroke-width: 5;
-      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
     }
 
     .wire-hover-overlay {
@@ -570,7 +569,7 @@
       fill: none;
       stroke-linecap: round;
       stroke-linejoin: round;
-      filter: drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px rgba(148, 163, 184, 0.95)) drop-shadow(0 0 18px rgba(148, 163, 184, 0.6));
+      filter: drop-shadow(0 0 5px rgba(148, 163, 184, 0.85));
       pointer-events: none;
       display: none;
     }
@@ -591,26 +590,26 @@
     .wire-group.active .wire-line {
       stroke: var(--wire-active) !important;
       stroke-width: 5.5 !important;
-      filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.9)) !important;
+      filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.85)) !important;
     }
 
     .wire-group.correct .wire-line {
       stroke: var(--wire-correct) !important;
       stroke-width: 5.5 !important;
-      filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.9)) !important;
+      filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.85)) !important;
     }
 
     .wire-group.wrong .wire-line {
       stroke: var(--wire-wrong) !important;
       stroke-width: 5.5 !important;
-      filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9)) !important;
+      filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.85)) !important;
     }
 
     .wire-group.missed .wire-line {
       stroke: var(--wire-missed) !important;
       stroke-width: 4.5 !important;
       stroke-dasharray: 6, 6;
-      filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.9)) !important;
+      filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.85)) !important;
     }
 
     /* Interactive Component Groups */
@@ -624,7 +623,6 @@
     .component-group:hover .block-mux {
       stroke: #38bdf8 !important;
       stroke-width: 2.4 !important;
-      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
     }
 
     /* Schematic Components */
@@ -633,7 +631,7 @@
       stroke: #3b82f6;
       stroke-width: 1.8;
       rx: 5;
-      transition: stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease;
+      transition: stroke 0.15s ease, stroke-width 0.15s ease;
     }
 
     .block-cu {
@@ -641,21 +639,21 @@
       stroke: #0284c7;
       stroke-width: 2.2;
       rx: 12;
-      transition: stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease;
+      transition: stroke 0.15s ease, stroke-width 0.15s ease;
     }
 
     .block-alu {
       fill: #1e293b;
       stroke: #38bdf8;
       stroke-width: 1.8;
-      transition: stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease;
+      transition: stroke 0.15s ease, stroke-width 0.15s ease;
     }
 
     .block-mux {
       fill: #1e293b;
       stroke: #38bdf8;
       stroke-width: 1.8;
-      transition: stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease;
+      transition: stroke 0.15s ease, stroke-width 0.15s ease;
     }
 
     .block-text {
@@ -962,6 +960,7 @@
       opacity: 0;
       transition: opacity 0.1s ease;
       word-wrap: break-word;
+      will-change: left, top;
     }
 
     .floating-tooltip.show {
@@ -2502,6 +2501,19 @@
     PCSrc: ["0", "1"]
   };
 
+  const SIGNAL_HARDWARE_ROLES = {
+    RegWrite: "Register File write enable (WE3): 1 = write to rd, 0 = disabled",
+    ImmSrc: "Sign-extension format: 00 = I-type, 01 = S-type, 10 = B-type, 11 = J-type",
+    ALUSrc: "2nd ALU operand (B): 0 = Register (RD2), 1 = Immediate (ImmExt)",
+    ALUOp: "ALU operation category: 00 = ADD, 01 = SUB, 10 = R-Type (funct3/funct7)",
+    MemWrite: "Data Memory write enable (WE): 1 = write RAM, 0 = disabled",
+    ResultSrc: "Register writeback source (WD3): 00 = ALUResult, 01 = ReadData, 10 = PC+4",
+    Branch: "Conditional branch flag (ANDed with ALU Zero to branch)",
+    Jump: "Unconditional jump flag (forces target address into PC)",
+    Zero: "ALU zero flag output (1 = ALUResult is zero, 0 = non-zero)",
+    PCSrc: "Next PC multiplexer source: 0 = PC+4 (sequential), 1 = Target address"
+  };
+
   const SIGNAL_MEANINGS = {
     RegWrite: {
       "0": "0 = Disable register write (no registers updated in register file)",
@@ -2719,7 +2731,9 @@
   }
 
   function hideTooltip() {
+    if (!floatingTooltip.classList.contains("show") && !tooltipTimer) return;
     clearTimeout(tooltipTimer);
+    tooltipTimer = null;
     lastTooltipTarget = null;
     floatingTooltip.classList.remove("show");
   }
@@ -2852,7 +2866,7 @@
     SIGNAL_KEYS.forEach(key => {
       const row = document.createElement("tr");
       const targetVal = inst.signals[key];
-      const desc = inst.sigDesc[key] || "";
+      const roleText = SIGNAL_HARDWARE_ROLES[key] || "";
 
       if (isQuiz) {
         let optsHtml = `<option value="">?</option>`;
@@ -2864,14 +2878,14 @@
         row.innerHTML = `
           <td><b>${key}</b></td>
           <td><select data-sig="${key}" class="sig-select">${optsHtml}</select></td>
-          <td style="color:var(--text-muted); font-size:0.73rem;">${desc}</td>
+          <td style="color:var(--text-muted); font-size:0.73rem;">${roleText}</td>
         `;
       } else {
         const isDc = targetVal === "X" || targetVal === "XX";
         row.innerHTML = `
           <td><b>${key}</b></td>
           <td><span class="sig-val ${isDc ? 'dc' : ''}" data-key="${key}" data-val="${targetVal}">${targetVal}</span></td>
-          <td style="color:var(--text-muted); font-size:0.73rem;">${desc}</td>
+          <td style="color:var(--text-muted); font-size:0.73rem;">${roleText}</td>
         `;
       }
       signalsTableBody.appendChild(row);
@@ -2929,8 +2943,22 @@
     }
   });
 
-  function updateExplanation() {
+  let explanationRevealed = false;
+
+  function updateExplanation(revealed = false) {
+    explanationRevealed = revealed;
     const inst = INSTRUCTIONS[currentIdx];
+    if (!revealed) {
+      explanationContent.innerHTML = `
+        <div id="btnPeekExplanation" style="color:var(--text-muted); font-size:0.75rem; font-style:italic; padding:6px 0; cursor:pointer;" title="Click to peek">
+          🔒 Architectural breakdown hidden while solving. Click <b>Check Answer</b>, <b>Reveal</b>, or <span style="color:#38bdf8; text-decoration:underline;">click here to reveal</span>.
+        </div>`;
+      const peekBtn = document.getElementById("btnPeekExplanation");
+      if (peekBtn) {
+        peekBtn.addEventListener("click", () => updateExplanation(true));
+      }
+      return;
+    }
     // Remove newline after ':' by converting <h4>Title:</h4><p>Desc</p> to inline format
     let html = inst.explanation
       .replace(/<h4>(.*?)<\/h4>\s*<p>(.*?)<\/p>/gis, '<div class="explain-item"><b class="explain-title">$1</b> <span>$2</span></div>');
@@ -2970,19 +2998,19 @@
 
     if (group.classList.contains("correct")) {
       wireHoverHighlight.style.stroke = "var(--wire-correct)";
-      wireHoverHighlight.style.filter = "drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px rgba(16, 185, 129, 1)) drop-shadow(0 0 20px rgba(16, 185, 129, 0.6))";
+      wireHoverHighlight.style.filter = "drop-shadow(0 0 6px rgba(16, 185, 129, 0.85))";
     } else if (group.classList.contains("wrong")) {
       wireHoverHighlight.style.stroke = "var(--wire-wrong)";
-      wireHoverHighlight.style.filter = "drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px rgba(239, 68, 68, 1)) drop-shadow(0 0 20px rgba(239, 68, 68, 0.6))";
+      wireHoverHighlight.style.filter = "drop-shadow(0 0 6px rgba(239, 68, 68, 0.85))";
     } else if (group.classList.contains("missed")) {
       wireHoverHighlight.style.stroke = "var(--wire-missed)";
-      wireHoverHighlight.style.filter = "drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 8px rgba(245, 158, 11, 1))";
+      wireHoverHighlight.style.filter = "drop-shadow(0 0 5px rgba(245, 158, 11, 0.85))";
     } else if (group.classList.contains("active")) {
       wireHoverHighlight.style.stroke = "var(--wire-active)";
-      wireHoverHighlight.style.filter = "drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px rgba(6, 182, 212, 1)) drop-shadow(0 0 20px rgba(6, 182, 212, 0.6))";
+      wireHoverHighlight.style.filter = "drop-shadow(0 0 6px rgba(6, 182, 212, 0.85))";
     } else {
       wireHoverHighlight.style.stroke = "#e2e8f0";
-      wireHoverHighlight.style.filter = "drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px rgba(148, 163, 184, 0.95)) drop-shadow(0 0 18px rgba(148, 163, 184, 0.6))";
+      wireHoverHighlight.style.filter = "drop-shadow(0 0 5px rgba(148, 163, 184, 0.85))";
     }
     wireHoverHighlight.style.display = "block";
   }
@@ -3101,6 +3129,7 @@
         feedbackText.innerHTML = `Wires: <b>${wireCorrect}/${targetSet.size}</b> (Missed: ${wireMissed}, Extra: ${wireWrong}) | Signals: <b>${sigCorrect}/${sigTotal}</b> correct.`;
       }
     }
+    updateExplanation(true);
   });
 
   // Reveal Solution
@@ -3151,6 +3180,7 @@
       renderSignalsTable();
     }
     updateModeFeedback();
+    updateExplanation(false);
   });
 
   // Mode Switching
@@ -3180,6 +3210,7 @@
     updateTaskPrompts();
     renderSignalsTable();
     updateModeFeedback();
+    updateExplanation(false);
   }
 
   btnModeA.addEventListener("click", () => setMode('a'));
