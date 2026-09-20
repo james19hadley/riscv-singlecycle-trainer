@@ -540,12 +540,13 @@
 
     /* SVG wire styles */
     .wire-hitbox {
-      stroke: transparent;
-      stroke-width: 22;
+      stroke: rgba(0, 0, 0, 0.001);
+      stroke-width: 24;
       stroke-linecap: round;
       stroke-linejoin: round;
       cursor: pointer;
       fill: none;
+      pointer-events: stroke !important;
     }
 
     .wire-line {
@@ -554,13 +555,39 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
-      transition: stroke 0.18s ease, stroke-width 0.18s ease;
+      transition: none; /* Instant zero-lag response */
       pointer-events: none;
     }
 
+    /* Instant CSS hover feedback directly on GPU compositor */
     .wire-group:hover .wire-line {
-      stroke: #94a3b8;
-      stroke-width: 5;
+      stroke: #f8fafc;
+      stroke-width: 5.5;
+      filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.9));
+    }
+
+    .wire-group.active:hover .wire-line {
+      stroke: #67e8f9 !important;
+      stroke-width: 6.5 !important;
+      filter: drop-shadow(0 0 6px rgba(6, 182, 212, 1)) !important;
+    }
+
+    .wire-group.correct:hover .wire-line {
+      stroke: #6ee7b7 !important;
+      stroke-width: 6.5 !important;
+      filter: drop-shadow(0 0 6px rgba(16, 185, 129, 1)) !important;
+    }
+
+    .wire-group.wrong:hover .wire-line {
+      stroke: #fca5a5 !important;
+      stroke-width: 6.5 !important;
+      filter: drop-shadow(0 0 6px rgba(239, 68, 68, 1)) !important;
+    }
+
+    .wire-group.missed:hover .wire-line {
+      stroke: #fcd34d !important;
+      stroke-width: 5.5 !important;
+      filter: drop-shadow(0 0 5px rgba(245, 158, 11, 1)) !important;
     }
 
     .wire-hover-overlay {
@@ -986,6 +1013,20 @@
       background: rgba(239, 68, 68, 0.2);
       color: #f87171;
       border: 1px solid #ef4444;
+    }
+
+    @keyframes badgePulse {
+      0% { transform: scale(0.92); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .score-badge.pulse {
+      animation: badgePulse 0.22s ease-out;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
     }
 
     .legend {
@@ -2893,9 +2934,14 @@
 
     if (isQuiz) {
       document.querySelectorAll(".sig-select").forEach(sel => {
-        sel.addEventListener("change", (e) => {
+        const onSelectUpdate = (e) => {
           userSignals[e.target.dataset.sig] = e.target.value;
-        });
+          sel.classList.remove("correct", "wrong");
+          scoreBadge.style.display = "none";
+          feedbackText.innerHTML = "Signal updated. Click <b>Check Answer</b> to evaluate.";
+        };
+        sel.addEventListener("change", onSelectUpdate);
+        sel.addEventListener("input", onSelectUpdate);
       });
     }
   }
@@ -3040,7 +3086,14 @@
   });
 
   // Check Answer
-  document.getElementById("btnCheck").addEventListener("click", () => {
+  const btnCheckEl = document.getElementById("btnCheck");
+  btnCheckEl.addEventListener("mousedown", () => {
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+  });
+
+  btnCheckEl.addEventListener("click", () => {
     const inst = INSTRUCTIONS[currentIdx];
     const targetSet = new Set(inst.activeWires);
 
@@ -3093,6 +3146,9 @@
 
     // 3. Score calculation per mode
     scoreBadge.style.display = "inline-block";
+    scoreBadge.classList.remove("pulse");
+    void scoreBadge.offsetWidth;
+    scoreBadge.classList.add("pulse");
 
     if (currentMode === 'a') {
       const wireScore = Math.max(0, Math.round(((wireCorrect - wireWrong) / targetSet.size) * 100));
